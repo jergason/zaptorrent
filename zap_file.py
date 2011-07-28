@@ -90,10 +90,13 @@ class ZapFile:
             except os.error, (code, message):
                 print("Error: path is set but file does not exist.")
                 return
-            # integer division always rounds down, so we add one to 
-            # get the last not-full block
-            self.blocks = size /  BLOCK_SIZE_IN_BYTES + 1
-            self.last_block = size - (self.blocks - 1) * BLOCK_SIZE_IN_BYTES
+            # integer division always rounds down if it needs to round.
+            # If the size is not a multiple of block_size_in_bytes, then
+            # the last block was rounded away and we add 1 to self.block
+            self.blocks = size /  BLOCK_SIZE_IN_BYTES
+            if size % BLOCK_SIZE_IN_BYTES != 0:
+                self.blocks += 1
+            self.last_block = size - ((self.blocks - 1) * BLOCK_SIZE_IN_BYTES)
 
     def set_path(self, path):
         if not os.path.exists(path):
@@ -107,7 +110,6 @@ class ZapFile:
 class ZapRemoteFile:
     def __init__(self):
         # Should the file know its ip address and port? Yes, because that makes is its location!
-        "stuff"
         self.ip = None
         self.port = None
         self.hostname = None
