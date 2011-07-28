@@ -74,9 +74,11 @@ get [file] #downloads file""")
                 #TODO: handle if they give an incorrect path
                 path = re.match('^load ([\w\._\-/]+)$', line).groups(1)[0]
                 f = ZapFile()
-                f.set_path(path)
-                self.local_files.add(f)
-                print("File at %s loaded for sharing." % path)
+                if f.set_path(path):
+                    self.local_files.add(f)
+                    print("File at %s loaded for sharing." % path)
+                else:
+                    print("File at %s doesn't exist. Try a different path." % path)
             elif re.match('^get (\w+)$', line):
                 "get"
             else:
