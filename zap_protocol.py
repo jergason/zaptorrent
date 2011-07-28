@@ -75,6 +75,7 @@ class ZapTorrentProtocolResponse:
                     self.fields['ip'], self.fields['port'], len(self.stuff_to_add))
             for f in self.stuff_to_add:
                 self.string += "%s %s %d\n" % (f.filename, f.digest, f.blocks)
+            print("in as_response, and constructed following response: %s" % self.string)
         elif self.response_type == "files?":
             self.string += "\n"
         return self.string

@@ -98,14 +98,18 @@ class FilesLister(threading.Thread):
         self.port = kwargs['port']
         self.ip = kwargs['ip']
         self.remote_files = kwargs['remote_files']
+        self.sock.sendto("HURP DURP", ("<broadcast>", self.port))
+        own_address = self.sock.getsockname()
+        self.ignore_port = own_address[1]
+        #get the ignore port
 
     def run(self):
         size = 55000
         while True:
             data, address = self.sock.recvfrom(size)
             #ignore stuff sent from our own socket
-            # if address[0] == self.ip and address[1] == self.port:
-            #     continue
+            if address[0] == self.ip and address[1] == self.ignore_port:
+                continue
             query = ZapTorrentProtocolParser(data)
             print("Got some data! ", data)
             print("my address is", (self.ip, self.port))
