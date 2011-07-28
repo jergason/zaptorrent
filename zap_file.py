@@ -109,6 +109,7 @@ class ZapFile:
             (fp, self.filename) = os.path.split(path)
             self.create_digest()
             self.calculate_blocks()
+            return True
 
 class ZapRemoteFile:
     def __init__(self):
