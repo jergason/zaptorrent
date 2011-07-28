@@ -103,7 +103,7 @@ class FilesLister(threading.Thread):
         while True:
             data, address = self.sock.recvfrom(size)
             #ignore stuff sent from our own socket
-            if address[0] == self.ip and address[1] == self.port:
+            # if address[0] == self.ip and address[1] == self.port:
             #     continue
             query = ZapTorrentProtocolParser(data)
             print("Got some data! ", data)
