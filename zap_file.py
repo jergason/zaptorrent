@@ -1,5 +1,6 @@
 import hashlib
 import threading
+import os
 
 class ZapFiles:
     def __init__(self):
@@ -18,7 +19,7 @@ class ZapFiles:
         self.sem.acquire()
         self.sem.release()
 
-    def get_all_files(self):
+    def get_files(self):
         #TODO: see how to make an immutable copy and return it so we
         # don't need to worry about anyone changing them.
         return self.files
@@ -38,18 +39,18 @@ class ZapFile:
         self.path = None
         self.filename = None
         self.digest = None
-        self.blocks = 0
-        self.size = 0
-        self.last_block_size = 0
+        self.blocks = None
+        self.size = None
+        self.last_block_size = None
 
     def create_digest(self):
         if self.path != None:
             # Hash file at path
-            f = open(path, "rb")
+            f = open(self.path, "rb")
             #TODO: look at this for larger files
             f_str = f.read()
             f.close()
-            self.digest = hashlib.sha224(f_str)
+            self.digest = hashlib.sha224(f_str).hexdigest()
             return True
         else:
             return False
@@ -58,11 +59,13 @@ class ZapFile:
         if self.path != None:
             size = 0
             try:
-                size = os.path.getsize(path)
+                size = os.path.getsize(self.path)
             except os.error, (code, message):
                 print("Error: path is set but file does not exist.")
                 return
-            self.blocks = size /  BLOCK_SIZE_IN_BYTES 
+            # integer division always rounds down, so we add one to 
+            # get the last not-full block
+            self.blocks = size /  BLOCK_SIZE_IN_BYTES + 1
             self.last_block = size - (self.blocks - 1) * BLOCK_SIZE_IN_BYTES
 
     def set_path(self, path):

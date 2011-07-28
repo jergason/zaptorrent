@@ -2,6 +2,8 @@ import sys
 import re
 import optparse
 import socket
+import random
+import threading
 from zap_file import ZapFile, ZapFiles
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
@@ -13,6 +15,16 @@ class ZapClient:
         self.verbose = verbose
         self.local_files = ZapFiles()
         self.remote_files = ZapFiles()
+        self.ip = self.get_ip()
+        self.discoverer = FilesLister(port=port, remote_files=self.remote_files,
+                ip=self.ip)
+        self.tcp_port = random.randint(1300, 40000)
+
+    def get_ip(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(("google.com", 80))
+        ip = sock.getsockname()[0]
+        return ip
 
     def quit(self):
         print("Thanks for using Zap Torrent!")
@@ -34,6 +46,7 @@ get [file] #downloads file""")
 
         b = ZapBroadcast(self.port, self.local_files, self.remote_files)
         b.start()
+        self.discoverer.start()
 
         while True:
             line = raw_input(self.prompt + " ")
@@ -47,18 +60,19 @@ get [file] #downloads file""")
                 # make a new broadcast socket and send out a files? message. Results will come to the b thread
                 # TODO: Should i clear out the files each time?
                 self.remote_files.clear()
-                query = ZapTorrentProtocolResponse("files?").as_response()
+                query = ZapTorrentProtocolResponse(response_type="files?").as_response()
                 #TODO: clean this up
                 #TODO: WHAT PORT DO I BIND TO TO BROADCAST? DOES IT MATTER?
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                if sys.platform == 'darwin':
-                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                # s.bind(("192.168.0.112", 3001))
+                s = self.discoverer.sock
+                # s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                # if sys.platform == 'darwin':
+                #     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                # s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                # s.bind(('<broadcast>', self.port))
                 length = 0
                 while length < len(query):
-                    sent_length = s.sendto(query, ("192.168.0.112", self.port))
+                    sent_length = s.sendto(query, ("<broadcast>", self.port))
                     length += sent_length
             elif re.match('^load ([\w\._\-/]+)$', line):
                 #TODO: handle if they give an incorrect path
@@ -72,6 +86,46 @@ get [file] #downloads file""")
             else:
                 self.print_usage()
                 continue
+
+class FilesLister(threading.Thread):
+    """This thread shares a socket, and will wait for responses listing files."""
+    def __init__(self, **kwargs):
+        threading.Thread.__init__(self)
+        threading.Thread.daemon = True
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.port = kwargs['port']
+        self.ip = kwargs['ip']
+        self.remote_files = kwargs['remote_files']
+
+    def run(self):
+        size = 55000
+        while True:
+            data, address = self.sock.recvfrom(size)
+            #ignore stuff sent from our own socket
+            if address[0] == self.ip and address[1] == self.port:
+            #     continue
+            query = ZapTorrentProtocolParser(data)
+            print("Got some data! ", data)
+            print("my address is", (self.ip, self.port))
+            print("other address is", address)
+            query.parse()
+            if query.message_type == "files":
+                # Parse the files out of the query, and store them in the remote files
+                print("got a files reponse: ", data)
+                ip = query.get_field('ip')
+                port = query.get_field('port')
+                name = query.get_field('name')
+                for f in query.get_files():
+                    #just make them use remote files?
+                    zf = ZapRemoteFile()
+                    zf.ip = ip
+                    zf.port = port
+                    zf.hostname = name
+                    zf.blocks = f['blocks']
+                    zf.digest = f['digest']
+                    zf.filename = f['filename']
+                    self.remote_files.add(zf)
 
 if __name__ == "__main__":
     parser = optparse.OptionParser(usage = "%prog [options]",
