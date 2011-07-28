@@ -2,7 +2,7 @@ import hashlib
 import threading
 import os
 
-class ZapFiles:
+class ZapLocalFiles:
     def __init__(self):
         self.files = []
         self.sem = threading.Semaphore()
@@ -31,6 +31,33 @@ class ZapFiles:
 
     def count(self):
         return len(self.files)
+
+class ZapRemoteFiles:
+    def __init__(self):
+        self.files = {}
+        self.sem = threading.Semaphore()
+
+    def add(self, f):
+        self.sem.acquire()
+        if f.filename in self.files:
+            self.files[f.filename].append(f)
+        else:
+            self.files[f.filename] = [f]
+        self.sem.release()
+
+    def get_by_filename(self, filename):
+        self.sem.acquire()
+        if filename in self.files:
+            return self.files[filename]
+        else:
+            return None
+        self.sem.release()
+
+    def clear(self)
+        self.sem.acquire()
+        self.files = {}
+        self.sem.release()
+
 
 BLOCK_SIZE_IN_BYTES = 262144 #1024 bytes in a kilobyte times 256K sized-blocks
 class ZapFile:

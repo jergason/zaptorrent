@@ -4,7 +4,7 @@ import optparse
 import socket
 import random
 import threading
-from zap_file import ZapFile, ZapFiles
+from zap_file import ZapFile, ZapLocalFiles
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
 
@@ -13,8 +13,8 @@ class ZapClient:
         self.prompt = "[Zap Torrent]"
         self.port = port
         self.verbose = verbose
-        self.local_files = ZapFiles()
-        self.remote_files = ZapFiles()
+        self.local_files = ZapLocalFiles()
+        self.remote_files = ZapRemoteFiles()
         self.ip = self.get_ip()
         self.discoverer = FilesLister(port=port, remote_files=self.remote_files,
                 ip=self.ip)
@@ -56,20 +56,10 @@ get [file] #downloads file""")
                 "name"
                 #TODO: set name of this host. Has to be somewhere shared I guess.
             elif re.match('^list$', line):
-                # We only broadcast now, i guess, and store the results in ZapFiles?
-                # make a new broadcast socket and send out a files? message. Results will come to the b thread
-                # TODO: Should i clear out the files each time?
                 self.remote_files.clear()
                 query = ZapTorrentProtocolResponse(response_type="files?").as_response()
-                #TODO: clean this up
                 #TODO: WHAT PORT DO I BIND TO TO BROADCAST? DOES IT MATTER?
                 s = self.discoverer.sock
-                # s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                # if sys.platform == 'darwin':
-                #     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-                # s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                # s.bind(('<broadcast>', self.port))
                 length = 0
                 while length < len(query):
                     sent_length = s.sendto(query, ("<broadcast>", self.port))
