@@ -4,7 +4,8 @@ import optparse
 import socket
 import random
 import threading
-from zap_file import ZapFile, ZapLocalFiles
+import time
+from zap_file import ZapFile, ZapLocalFiles, ZapRemoteFiles, ZapRemoteFile
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
 
@@ -64,6 +65,11 @@ get [file] #downloads file""")
                 while length < len(query):
                     sent_length = s.sendto(query, ("<broadcast>", self.port))
                     length += sent_length
+                #now wait for the filesLister to get more info
+                print("Waiting for response from peers. . .")
+                time.sleep(3)
+                for k in self.remote_files.get_all_files():
+                    print("File: %s" % k)
             elif re.match('^load ([\w\._\-/]+)$', line):
                 #TODO: handle if they give an incorrect path
                 path = re.match('^load ([\w\._\-/]+)$', line).groups(1)[0]

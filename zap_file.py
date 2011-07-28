@@ -53,10 +53,13 @@ class ZapRemoteFiles:
             return None
         self.sem.release()
 
-    def clear(self)
+    def clear(self):
         self.sem.acquire()
         self.files = {}
         self.sem.release()
+
+    def get_all_files(self):
+        return self.files
 
 
 BLOCK_SIZE_IN_BYTES = 262144 #1024 bytes in a kilobyte times 256K sized-blocks
@@ -90,9 +93,9 @@ class ZapFile:
             except os.error, (code, message):
                 print("Error: path is set but file does not exist.")
                 return
-            # integer division always rounds down if it needs to round.
             # If the size is not a multiple of block_size_in_bytes, then
-            # the last block was rounded away and we add 1 to self.block
+            # the number of blocks was rounded down by integer division, so
+            # we add 1 to get the correct number of blocks.
             self.blocks = size /  BLOCK_SIZE_IN_BYTES
             if size % BLOCK_SIZE_IN_BYTES != 0:
                 self.blocks += 1
