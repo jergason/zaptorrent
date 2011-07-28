@@ -5,13 +5,15 @@ from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 import random
 
 class ZapBroadcast(threading.Thread):
-    def __init__(self, broadcast_port, local_files, remote_files):
+    def __init__(self, broadcast_port, local_files, remote_files, ip, ignore_port):
         threading.Thread.__init__(self)
         threading.Thread.daemon = True
         self.port = broadcast_port
         self.host = ''
         self.local_files = local_files
         self.remote_files = remote_files
+        self.ignore_port = ignore_port
+        self.ip = ip
         self.open_socket()
 
     def open_socket(self):
@@ -31,12 +33,13 @@ class ZapBroadcast(threading.Thread):
         SIZE = 65000
         while True:
             #TODO: what if not all the data comes at once?
-            #TODO: how to ignore my own stuff?
             data, address = self.sock.recvfrom(SIZE)
-            # if socket.self.sock.getsockname()
+            if address[0] == self.ip and address[1] == self.ignore_port:
+                continue
             query = ZapTorrentProtocolParser(data)
             print("in zap_broadcast and got some data! ", data)
             print("address is", address)
+            print("my ignoring stuff is", self.ip, self.ignore_port)
             query.parse()
             if query.message_type == 'error':
                 self.sock.sendto(query.response, address)
