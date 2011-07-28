@@ -17,6 +17,9 @@ class ZapTorrentProtocolParser:
         for k in kwargs:
             self.fields[k] = kwargs[k]
 
+    def get_field(self, field_name):
+        return self.fields.get(field_name)
+
     def parse(self):
         if self.protocol_matchers['files?'].match(self.data):
             self.message_type = "files?"
@@ -31,19 +34,25 @@ class ZapTorrentProtocolParser:
             num_files = match.group('num_files')
             file_list = match.group('rest')
             filename_re = re.compile(r"^(?P<filename>[\w\.\-_]+) (?P<digest>[\w\d]+) (?P<blocks>\d+)$")
+            # splitting on new lines when the string ends with a newline results in
+            # an empty string. Check for empty string when looking.
             for line_number, line in enumerate(file_list.split("\n")):
                 # parse the file fields
                 file_line_match = filename_re.match(line)
                 if file_line_match is None or line_number + 1 > num_files:
-                    print("error in parsing files query:", self.data)
-                    self.message_type = 'error'
-                    self.response = "ZT 1.0 error File lines not correctly formatted.\n"
-
-
-                    #TODO: what to do if the later lines don't match?
+                    if line == "":
+                        continue
+                    else:
+                        self.message_type = 'error'
+                        self.response = "ZT 1.0 error File lines not correctly formatted.\n"
+                self.files_list.append({ 'filename': file_line_match.group('filename'),
+                    'digest': file_line_match.group('digest'), 'blocks': file_line_match.group('blocks')})
         else:
             self.message_type = "error"
             self.response = "ZT 1.0 error Could not recognize protocol.\n"
+
+    def get_files(self):
+        return self.files_list
 
 class ZapTorrentProtocolResponse:
     def __init__(self, **kwargs):
