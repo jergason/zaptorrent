@@ -71,7 +71,6 @@ get [file] #downloads file""")
                 for k in self.remote_files.get_all_files():
                     print("File: %s" % k)
             elif re.match('^load ([\w\._\-/]+)$', line):
-                #TODO: handle if they give an incorrect path
                 path = re.match('^load ([\w\._\-/]+)$', line).groups(1)[0]
                 f = ZapFile()
                 if f.set_path(path):
