@@ -51,7 +51,7 @@ get [file] #downloads file""")
         own_address = self.discoverer.sock.getsockname()
         print("own address for my comms port is", own_address)
         ignore_port = own_address[1]
-        b = ZapBroadcast(self.port, self.local_files, self.remote_files, self.ip, ignore_port)
+        b = ZapBroadcast(self.port, self.local_files, self.remote_files, self.ip, ignore_port, self.tcp_port)
         b.start()
 
         while True:
@@ -104,12 +104,13 @@ class FilesLister(threading.Thread):
         while True:
             data, address = self.sock.recvfrom(size)
             #ignore stuff sent from our own socket
-            if address[0] == self.ip and address[1] == self.port:
-                continue
+            # if address[0] == self.ip and address[1] == self.port:
+            #     continue
             query = ZapTorrentProtocolParser(data)
             print("Got some data! ", data)
             print("my address is", (self.ip, self.port))
             print("other address is", address)
+            print("about to parse the query in FilesLister")
             query.parse()
             if query.message_type == "files":
                 # Parse the files out of the query, and store them in the remote files

@@ -59,6 +59,7 @@ class ZapRemoteFiles:
         self.sem.release()
 
     def get_all_files(self):
+        print("someone called get_all_files!")
         return self.files
 
 

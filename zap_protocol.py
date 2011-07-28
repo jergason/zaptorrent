@@ -21,6 +21,7 @@ class ZapTorrentProtocolParser:
         if self.protocol_matchers['files?'].match(self.data):
             self.message_type = "files?"
         elif self.protocol_matchers['files'].match(self.data):
+            print("found something that matches files")
             match = self.protocol_matchers['files'].match(self.data)
             self.message_type = 'files'
             self.fields['ip'] = match.group('ip')
@@ -34,6 +35,7 @@ class ZapTorrentProtocolParser:
                 # parse the file fields
                 file_line_match = filename_re.match(line)
                 if file_line_match is None or line_number + 1 > num_files:
+                    print("error in parsing files query:", self.data)
                     self.message_type = 'error'
                     self.response = "ZT 1.0 error File lines not correctly formatted.\n"
 
