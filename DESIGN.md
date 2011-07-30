@@ -30,3 +30,13 @@ does that work?
 ##Answers
 1. How does the load command work? Copy to a specific location? Or just
    add to an internal list? Add to an internal list for simplicity.
+
+2. Get list of peers. Make stored data structure representing the number
+   of blocks in the file. Each block can be marked as "not present", "in
+progress" or "downloaded". Query a peer. WHen he has something you do
+not, acquire the lock on that part, and download it! WHen he only has
+stuff you already have, close the connection.
+3. Re-do how files work. Each file should know how many blocks the total
+   file has, and the status of each block - is it downloaded or not,
+   what the size is, and the contents. Should also provide thread-safe
+   access to the blocks and the status of the blocks.

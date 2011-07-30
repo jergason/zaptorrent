@@ -8,18 +8,20 @@ import time
 from zap_file import ZapFile, ZapLocalFiles, ZapRemoteFiles, ZapRemoteFile
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
+from zap_config import ZapConfig
 
 class ZapClient:
     def __init__(self, port, verbose):
         self.prompt = "[Zap Torrent]"
         self.port = port
-        self.verbose = verbose
         self.local_files = ZapLocalFiles()
         self.remote_files = ZapRemoteFiles()
+        ZapConfig.debug = verbose
         self.ip = self.get_ip()
-        self.discoverer = FilesLister(port=port, remote_files=self.remote_files,
-                ip=self.ip)
-        self.tcp_port = random.randint(1300, 40000)
+        self.broadcast_port = port
+        ZapConfig.ip = self.get_ip()
+        self.discoverer = FilesLister(port=self.broadcast_port, remote_files=self.remote_files)
+        ZapConfig.tcp_port = random.randint(1300, 40000)
 
     def get_ip(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,11 +49,12 @@ get [file] #downloads file""")
 
         self.discoverer.start()
         #Send something to the discover sock so we can bind it to a port
-        self.discoverer.sock.sendto("HURP DURP", ("<broadcast>", self.port))
+        self.discoverer.sock.sendto("HURP DURP", ("<broadcast>", self.broadcast_port))
         own_address = self.discoverer.sock.getsockname()
         print("own address for my comms port is", own_address)
         ignore_port = own_address[1]
-        b = ZapBroadcast(self.port, self.local_files, self.remote_files, self.ip, ignore_port, self.tcp_port)
+        b = ZapBroadcast(self.broadcast_port, self.local_files,
+                self.remote_files, self.ip, ignore_port)
         b.start()
 
         while True:
@@ -67,7 +70,7 @@ get [file] #downloads file""")
                 s = self.discoverer.sock
                 length = 0
                 while length < len(query):
-                    sent_length = s.sendto(query, ("<broadcast>", self.port))
+                    sent_length = s.sendto(query, ("<broadcast>", self.broadcast_port))
                     length += sent_length
                 #now wait for the filesLister to get more info
                 print("Waiting for response from peers. . .")
@@ -96,7 +99,6 @@ class FilesLister(threading.Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.port = kwargs['port']
-        self.ip = kwargs['ip']
         self.remote_files = kwargs['remote_files']
         self.sock.sendto("HURP DURP", ("<broadcast>", self.port))
         own_address = self.sock.getsockname()
@@ -108,11 +110,11 @@ class FilesLister(threading.Thread):
         while True:
             data, address = self.sock.recvfrom(size)
             #ignore stuff sent from our own socket
-            if address[0] == self.ip and address[1] == self.ignore_port:
+            if address[0] == ZapConfig.ip and address[1] == self.ignore_port:
                 continue
             query = ZapTorrentProtocolParser(data)
             print("Got some data! ", data)
-            print("my address is", (self.ip, self.port))
+            print("my address is", (ZapConfig.ip, self.port))
             print("other address is", address)
             print("about to parse the query in FilesLister")
             query.parse()

@@ -2,19 +2,19 @@ import socket
 import threading
 import sys
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
+from zap_config import ZapConfig
 import random
 
 class ZapBroadcast(threading.Thread):
-    def __init__(self, broadcast_port, local_files, remote_files, ip, ignore_port, tcp_port):
+    def __init__(self, broadcast_port, local_files, remote_files, ip, ignore_port):
         threading.Thread.__init__(self)
         threading.Thread.daemon = True
         self.port = broadcast_port
         self.host = ''
         self.local_files = local_files
         self.remote_files = remote_files
-        self.ignore_port = ignore_port
         self.ip = ip
-        self.tcp_port = tcp_port
+        self.ignore_port = ignore_port
         self.open_socket()
 
     def open_socket(self):
@@ -49,7 +49,7 @@ class ZapBroadcast(threading.Thread):
                 #BUILD LIST OF FILES AND SEND BACK
                 response = ZapTorrentProtocolResponse(response_type='files', name='hurp',
                                                       ip=socket.gethostbyname(socket.gethostname()),
-                                                      port=self.tcp_port)
+                                                      port=ZapConfig.tcp_port)
                 for file in self.local_files.get_files():
                     response.add(file)
                 print("response is ", response.as_response())
