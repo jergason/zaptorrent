@@ -54,19 +54,3 @@ class ZapBroadcast(threading.Thread):
                     response.add(file)
                 print("response is ", response.as_response())
                 self.sock.sendto(response.as_response(), address)
-            # elif query.message_type == "files":
-            #     # Parse the files out of the query, and store them in the remote files
-            #     print("got a files reponse: ", data)
-            #     ip = query.get_field('ip')
-            #     port = query.get_field('port')
-            #     name = query.get_field('name')
-            #     for f in query.get_files():
-            #         #just make them use remote files?
-            #         zf = ZapRemoteFile()
-            #         zf.ip = ip
-            #         zf.port = port
-            #         zf.hostname = name
-            #         zf.blocks = f['blocks']
-            #         zf.digest = f['digest']
-            #         zf.filename = f['filename']
-            #         self.remote_files.add(zf)

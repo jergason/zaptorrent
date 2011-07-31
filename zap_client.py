@@ -5,7 +5,7 @@ import socket
 import random
 import threading
 import time
-from zap_file import ZapFile, ZapLocalFiles, ZapRemoteFiles, ZapRemoteFile
+from zap_file import ZapFile, ZapFiles
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
 from zap_config import ZapConfig
@@ -14,8 +14,8 @@ class ZapClient:
     def __init__(self, port, verbose):
         self.prompt = "[Zap Torrent]"
         self.port = port
-        self.local_files = ZapLocalFiles()
-        self.remote_files = ZapRemoteFiles()
+        self.local_files = ZapFiles()
+        self.remote_files = ZapFiles()
         ZapConfig.debug = verbose
         self.ip = self.get_ip()
         self.broadcast_port = port
@@ -35,14 +35,14 @@ class ZapClient:
 
     def print_usage(self):
         print("""usage:
-quit #quits the program
+quit        #quits the program
 name [name] #sets the name of the peer
-list #lists all files available to download from other peers
+list        #lists all files available to download from other peers
 load [file] #makes a fie availible to peers for download
-get [file] #downloads file""")
+get [file]  #downloads file""")
 
     def print_welcome(self):
-        print("""Welcome to ZapTorrent. Type `usage` for instructions.""")
+        print("Welcome to ZapTorrent. Type `usage` for instructions.")
 
     def run(self):
         self.print_welcome()
@@ -78,7 +78,7 @@ get [file] #downloads file""")
                 for k in self.remote_files.get_all_files():
                     print("File: %s" % k)
             elif re.match('^load ([\w\._\-/]+)$', line):
-                path = re.match('^load ([\w\._\-/]+)$', line).groups(1)[0]
+                path = re.match('^load ([\w\._\-/]+)$', line).group(1)
                 f = ZapFile()
                 if f.set_path(path):
                     self.local_files.add(f)
@@ -86,7 +86,9 @@ get [file] #downloads file""")
                 else:
                     print("File at %s doesn't exist. Try a different path." % path)
             elif re.match('^get (\w+)$', line):
-                "get"
+                filename =  re.match('^get (\w+)$', line).group(1)
+                remote_files = self.remote_files.get(filename)
+
             else:
                 self.print_usage()
                 continue
@@ -126,11 +128,11 @@ class FilesLister(threading.Thread):
                 name = query.get_field('name')
                 for f in query.get_files():
                     #just make them use remote files?
-                    zf = ZapRemoteFile()
+                    zf = ZapFile(status="not-present")
                     zf.ip = ip
                     zf.port = port
                     zf.hostname = name
-                    zf.blocks = f['blocks']
+                    zf.number_of_blocks = f['blocks']
                     zf.digest = f['digest']
                     zf.filename = f['filename']
                     self.remote_files.add(zf)
