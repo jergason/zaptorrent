@@ -98,6 +98,9 @@ class ZapTorrentProtocolParser:
     def get_files(self):
         return self.files_list
 
+    def get_blocks(self):
+        return self.block_list
+
 class ZapTorrentProtocolResponse:
     def __init__(self, **kwargs):
         self.fields = {}

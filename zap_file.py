@@ -6,7 +6,7 @@ from collections import namedtuple
 
 BLOCK_SIZE_IN_BYTES = 262144 #1024 bytes in a kilobyte times 256K sized-blocks
 class ZapFileBlock:
-    #Assume it points to a valid file
+    # Assume it points to a valid file
     file_flags = os.O_RDONLY
     if sys.platform == "win32":
         file_flags = file_flags | os.O_BINARY
@@ -35,6 +35,7 @@ class ZapFile:
                 self.set_path(kwargs[k])
             else:
                 self.k = kwargs[k]
+        self.sem = threading.Semaphore()
 
     def set_path(self, path):
         if os.path.exists(path):
@@ -56,7 +57,7 @@ class ZapFile:
             num_blocks = size / BLOCK_SIZE_IN_BYTES
             if (size  % BLOCK_SIZE_IN_BYTES) != 0:
                 num_blocks += 1
-            last_block_size = size - ((num_blocks - 1) * BLOCK_SIZE_IN_BYTES)
+            self.last_block_size = size - ((num_blocks - 1) * BLOCK_SIZE_IN_BYTES)
             for block_id in range(num_blocks):
                 if block_id == (num_blocks - 1):
                     block_size = last_block_size
@@ -64,7 +65,7 @@ class ZapFile:
                     block_size = BLOCK_SIZE_IN_BYTES
                 self.blocks.append(ZapFileBlock(self.path, block_id,
                     block_size, status="present"))
-            # return True
+            return True
             self.number_of_blocks = len(self.blocks)
         else:
             return False
@@ -77,13 +78,28 @@ class ZapFile:
     def get_blocks(self):
         return self.blocks
 
+    def mark_as_remote(self, number_of_blocks):
+        # each block stores its bytes in internal storage?
+        path = os.path.join(os.path.abspath(sys.path[0]), 'downloads', self.filename)
+        for i in range(number_of_blocks):
+            self.blocks.append(ZapFileBlock(status='not-present',
+                path=path, id=i, size=BLOCK_SIZE_IN_BYTES))
+
+
+    def does_block_needs_downloading(self, block_id):
+        return self.blocks[block_id].staus == 'not-present'
+
+    def mark_block_as(self, status, block_id):
+        self.blocks[block_id].status = status
+
+    def set_block_data(self, block_id, data):
+        self.blocks[block_id].data = data
 
 
 class ZapFiles:
     def __init__(self):
         self.files = {}
         self.sem = threading.Semaphore()
-        # self.lock = threading.Lock()
 
     def add(self, f):
         """Add a file to the files we are sharing."""
