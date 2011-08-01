@@ -1,6 +1,7 @@
 import threading
 import socket
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
+from zap_config import zap_debug_print
 
 
 class ZapTCPServer(threading.Thread):
@@ -43,11 +44,12 @@ class ZapTCPResponseThread(threading.Thread):
     def run(self):
         #TODO: what if we don't receive it all at once?
         msg = self.sock.recv(54000)
+        zap_debug_print("Got a message on the ZAPTCPResponseThread and it is", msg)
         response = ""
         query = ZapTorrentProtocolParser(msg)
         query.parse()
         if query.message_type == 'error':
-            "HURP DUPR"
+            response = query.response
         elif query.message_type == 'inventory?':
             #Look for the file in local_files
             f = self.local_files.get(query.fields['filename'])
@@ -59,6 +61,7 @@ class ZapTCPResponseThread(threading.Thread):
                 response = r.as_response()
         elif query.message_type == 'download?':
             #make sure we have the file
+            zap_debug_print("Got a download query")
             f = self.local_files.get(query.fields['filename'])
             if f is None:
                 response = "ZT 1.0 error No file of %s" % self.local_files.get(query.fields['filename'])
@@ -66,8 +69,10 @@ class ZapTCPResponseThread(threading.Thread):
                 #TODO: log the answer
                 #TODO: make sure the block with that id exists, and it is not being downloaded
                 r = ZapTorrentProtocolResponse(response_type="download", filename=f.filename, id=query.fields['id'],
-                        bytes=f.get_block(query.fields['id']).get_bytes())
+                        bytes=f.get_block(int(query.fields['id'])).get_bytes())
                 response = r.as_response()
+        else:
+            response = "ZT 1.0 error unknown TCP query type.\n"
         sent_length = 0
         while sent_length < len(response):
             message_remaining = response[sent_length:]

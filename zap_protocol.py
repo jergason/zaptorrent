@@ -1,4 +1,5 @@
 import re
+from zap_config import zap_debug_print
 
 class ZapTorrentProtocolParser:
     """Parse the ZapTorrent protocol and return relevent information."""
@@ -8,11 +9,11 @@ class ZapTorrentProtocolParser:
             'files?': re.compile(r"^ZT 1\.0 files\?\n$"),
             'files': re.compile(r"^ZT 1\.0 files (?P<name>\w+) (?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (?P<port>\d+) (?P<num_files>\d+)\n(?P<rest>.*)\n$",
                 re.DOTALL),
-            'inventory?': re.compile(r"^ZT 1\.0 inventory\? (?P<filename>[\w\.\-_]+)\n$"),
+            'inventory?': re.compile(r"^ZT 1\.0 inventory\? (?P<filename>[\w\.\-]+)\n$"),
             'inventory': re.compile(r"^ZT 1\.0 inventory (?P<filename>[\w\.\-_]+) (?P<blocks>\d+)\n(?P<rest>.*)\n$", re.DOTALL),
-            'download?': re.compile(r"^ZT 1\.0 download\? (?P<filename>[\w\.\-_]+) (?P<id>\d+) (?P<name>[\w]+) (?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})" +
+            'download?': re.compile(r"^ZT 1\.0 download\? (?P<filename>[\w\.\-]+) (?P<id>\d+) (?P<name>\w+) (?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})" +
                 r" (?P<port>\d+)\n$"),
-            'download': re.compile(r"^ZT 1\.0 download (?P<filename>[\w\.\-_]+) (?P<id>\d+) (?P<bytes>.*)$\n", re.DOTALL),
+            'download': re.compile(r"^ZT 1\.0 download (?P<filename>[\w\.\-]+) (?P<id>\d+) (?P<bytes>\d+)\n (?P<data>.*)$", re.DOTALL),
         }
         self.data = data
         self.fields = {}
@@ -35,7 +36,7 @@ class ZapTorrentProtocolParser:
             self.files_list = []
             num_files = match.group('num_files')
             file_list = match.group('rest')
-            filename_re = re.compile(r"^(?P<filename>[\w\.\-_]+) (?P<digest>[\w\d]+) (?P<blocks>\d+)$")
+            filename_re = re.compile(r"^(?P<filename>[\w\.\-]+) (?P<digest>[\w]+) (?P<blocks>\d+)$")
             # splitting on new lines when the string ends with a newline results in
             # an empty string. Check for empty string when looking.
             for line_number, line in enumerate(file_list.split("\n")):
@@ -77,9 +78,19 @@ class ZapTorrentProtocolParser:
                         block_line_match.group('bytes')})
 
         elif self.protocol_matchers['download?'].match(self.data):
-            ""
+            match = self.protocol_matchers['download?'].match(self.data)
+            self.message_type = 'download?'
+            self.fields['filename'] = match.group('filename')
+            self.fields['id'] = match.group('id')
+            self.fields['name'] = match.group('name')
+            self.fields['ip'] = match.group('ip')
+            self.fields['port'] = match.group('port')
         elif self.protocol_matchers['download'].match(self.data):
-            ""
+            match = self.protocol_matchers['download'].match(self.data)
+            self.fields['filename'] = match.group('filename')
+            self.fields['id'] = match.group('id')
+            self.fields['bytes'] = match.group('bytes')
+            self.fields['data'] = match.group('data')
         else:
             self.message_type = "error"
             self.response = "ZT 1.0 error Could not recognize protocol.\n"
@@ -147,8 +158,11 @@ class ZapTorrentProtocolResponse:
                     self.fields['id'], self.fields['name'], self.fields['ip'],
                     self.fields['port'])
         elif self.response_type == 'download':
-            response_string += " %s %d %d\n" % (self.fields['filename'], self.fields['id'],
-                    len(self.fields['bytes']))
+            number_of_bytes = len(self.fields['bytes'])
+            zap_debug_print("Fields are", self.fields['filename'], self.fields['id'],
+                    number_of_bytes, self.fields['bytes'])
+            response_string += " %s %d %d\n" % (self.fields['filename'], int(self.fields['id']),
+                    number_of_bytes)
             response_string += self.fields['bytes']
         return response_string
 
