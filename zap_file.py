@@ -2,21 +2,21 @@ import hashlib
 import threading
 import os
 import sys
-from collections import namedtuple
+from zap_config import zap_debug_print
 
 BLOCK_SIZE_IN_BYTES = 262144 #1024 bytes in a kilobyte times 256K sized-blocks
 class ZapFileBlock:
     # Assume it points to a valid file
     file_flags = os.O_RDONLY
-    if sys.platform == "win32":
+    if sys.platform == 'win32':
         file_flags = file_flags | os.O_BINARY
 
     def __init__(self, path, id, size, **kwargs):
         for k in kwargs:
-            self.k = kwargs[k]
+            self.__dict__[k] = kwargs[k]
         # Status can either be present, downloading or not-present
-        if "status" not in kwargs:
-            self.status = "present"
+        if 'status' not in kwargs:
+            self.status = 'present'
         self.path = path
         self.id = id
         self.size = size
@@ -83,6 +83,9 @@ class ZapFile:
 
     def get_blocks(self, **kwargs):
         if 'status' in kwargs:
+            for block in self.blocks:
+                zap_debug_print(dir(block))
+
             return filter(lambda x: x.status == kwargs['status'], self.blocks)
         else:
             return self.blocks
