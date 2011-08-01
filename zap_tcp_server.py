@@ -54,7 +54,7 @@ class ZapTCPResponseThread(threading.Thread):
             #Look for the file in local_files
             f = self.local_files.get(query.fields['filename'])
             if f is None:
-                response = "ZT 1.0 error No file of %s" % self.local_files.get(query.fields['filename'])
+                response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
                 r = ZapTorrentProtocolResponse(response_type="inventory", filename=f.filename, blocks=f.number_of_blocks)
                 r.stuff_to_add = f.get_blocks()
@@ -64,7 +64,7 @@ class ZapTCPResponseThread(threading.Thread):
             zap_debug_print("Got a download query")
             f = self.local_files.get(query.fields['filename'])
             if f is None:
-                response = "ZT 1.0 error No file of %s" % self.local_files.get(query.fields['filename'])
+                response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
                 #TODO: log the answer
                 #TODO: make sure the block with that id exists, and it is not being downloaded
