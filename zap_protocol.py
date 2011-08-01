@@ -130,7 +130,7 @@ class ZapTorrentProtocolResponse:
             # add the four fields
             response_string += " %s %s %d %d\n" % (self.fields['name'],
                     self.fields['ip'], self.fields['port'], len(self.stuff_to_add))
-            print("in as_response before for loop, and constructed following response: %s" % response_string)
+            zap_debug_print("in as_response before for loop, and constructed following response: %s" % response_string)
             for f in self.stuff_to_add:
                 response_string += "%s %s %d\n" % (f.filename, f.digest, f.number_of_blocks)
             print("in as_response, and constructed following response: %s" % response_string)

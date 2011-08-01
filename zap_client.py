@@ -84,6 +84,7 @@ get [file]  #downloads file""")
                 self.quit()
             elif re.match('^name (\w+)$', line):
                 ZapConfig.name = re.match(r"^name (\w+)$", line).group(1)
+                print("Name is now %s" % ZapConfig.name)
             elif re.match('^list$', line):
                 self.remote_files.clear()
                 query = ZapTorrentProtocolResponse(response_type="files?").as_response()
@@ -105,7 +106,7 @@ get [file]  #downloads file""")
                     self.local_files.add(f)
                     print("File at %s loaded for sharing." % path)
                 else:
-                    print("File at %s doesn't exist. Try a different path." % path)
+                    print("File at %s doesn't exist, or it is a directory. Try a different path." % path)
             elif re.match('^get (\w+)$', line):
                 filename =  re.match('^get (\w+)$', line).group(1)
                 remote_files = self.remote_files.get(filename)
@@ -124,11 +125,8 @@ class ZapDownloader(threading.Thread):
         self.remote_files = remote_files
         self.local_files = local_files
 
-
-
     def remote_file_downloader(self, remote_file, file_attributes):
         return ZapTCPDownloadThread(remote_file, file_attributes)
-
 
     def run(self):
         """Spawn off threads to download each block. When all
@@ -137,6 +135,7 @@ class ZapDownloader(threading.Thread):
         sure it matches, and save it to disk."""
         file_info = self.remote_files[0]
         remote_file = ZapFile()
+        self.local_files.add(remote_file)
         remote_file.mark_as_remote()
         child_threads = []
 
@@ -148,6 +147,19 @@ class ZapDownloader(threading.Thread):
             child_thread = self.remote_file_downloader(remote_file, f)
             child_thread.start()
             child_threads.append(child_thread)
+
+        # How do we wait for them to finish?
+        while not remote_file.is_downloaded():
+            sleep(10)
+
+        # Now all child threads are gone, I hope.
+        remote_file.save_to_disk()
+        if remote_file.digest != file_info.digest:
+            # Our file does not match. Quit this thread and return an error
+            zap_debug_print("Digest does not match!")
+            return False
+        else:
+            return True
 
 class ZapTCPDownloadThread(threading.Thread):
     def __init__(self, remote_file, peer_info):
@@ -185,8 +197,13 @@ class ZapTCPDownloadThread(threading.Thread):
             data = self.download_block(self.peer_info['filename'],
                     block_to_download, self.peer_info['ip'],
                     self.peer_info['port'])
-            remote_file.set_block_data(block_to_download, data)
-            remote_file.mark_block_as('present', block_to_download)
+            if data is not None:
+                remote_file.set_block_data(block_to_download, data)
+                remote_file.mark_block_as('present', block_to_download)
+            else:
+                # Mark the block to be downloaded again.
+                print("error downloading block %d from" % block_to_download. peer_info)
+                remote_file.mark_block_as('not-present', block_to_download)
 
     def get_available_blocks(self, ip, port, filename):
         """Return a list of blocks that the peer at
@@ -300,4 +317,5 @@ if __name__ == "__main__":
     parser.set_defaults(verbose=False)
     options, args = parser.parse_args()
     z = ZapClient(options.port, options.verbose)
+    print("RUNNING ZAP_CLIENT")
     z.run()

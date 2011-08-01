@@ -38,7 +38,7 @@ class ZapFile:
         self.sem = threading.Semaphore()
 
     def set_path(self, path):
-        if os.path.exists(path):
+        if os.path.isfile(path):
             self.path = path
             (p, self.filename) = os.path.split(self.path)
             self.calculate_digest_and_create_blocks()
@@ -48,10 +48,10 @@ class ZapFile:
 
     def calculate_digest_and_create_blocks(self):
         if self.path is not None:
+            self.calculate_digest()
             f = open(self.path, "rb")
             f_str = f.read()
             f.close()
-            self.digest = hashlib.sha224(f_str).hexdigest()
             self.blocks = []
             size = os.path.getsize(self.path)
             num_blocks = size / BLOCK_SIZE_IN_BYTES
@@ -60,27 +60,36 @@ class ZapFile:
             self.last_block_size = size - ((num_blocks - 1) * BLOCK_SIZE_IN_BYTES)
             for block_id in range(num_blocks):
                 if block_id == (num_blocks - 1):
-                    block_size = last_block_size
+                    block_size = self.last_block_size
                 else:
                     block_size = BLOCK_SIZE_IN_BYTES
                 self.blocks.append(ZapFileBlock(self.path, block_id,
                     block_size, status="present"))
-            return True
             self.number_of_blocks = len(self.blocks)
+            return True
         else:
             return False
 
+    def calculate_digest(self):
+        if self.path is not None:
+            f = open(self.path, "rb")
+            f_str = f.read()
+            f.close()
+            self.digest = hashlib.sha224(f_str).hexdigest()
 
     #TODO: grant thread-safe access to blocks
     def get_block(self, block_id):
         return self.blocks[block_id]
 
-    def get_blocks(self):
-        return self.blocks
+    def get_blocks(self, **kwargs):
+        if 'status' in kwargs:
+            return filter(lambda x: x.status == kwargs['status'], self.blocks)
+        else:
+            return self.blocks
 
     def mark_as_remote(self, number_of_blocks):
         # each block stores its bytes in internal storage?
-        path = os.path.join(os.path.abspath(sys.path[0]), 'downloads', self.filename)
+        self.path = os.path.join(os.path.abspath(sys.path[0]), 'downloads', self.filename)
         for i in range(number_of_blocks):
             self.blocks.append(ZapFileBlock(status='not-present',
                 path=path, id=i, size=BLOCK_SIZE_IN_BYTES))
@@ -94,6 +103,20 @@ class ZapFile:
 
     def set_block_data(self, block_id, data):
         self.blocks[block_id].data = data
+
+    def is_downloaded(self):
+        """If any blocks are not downloaded, then the whole
+        file is not downloaded."""
+        for block in self.blocks:
+            if block.status != 'present':
+                return False
+        return True
+
+    def save_to_disk(self):
+        fp = open(self.path, "w")
+        for block in self.blocks:
+            fp.write(block.data)
+        fp.close()
 
 
 class ZapFiles:

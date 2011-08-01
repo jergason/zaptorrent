@@ -46,6 +46,7 @@ class ZapBroadcast(threading.Thread):
                 self.sock.sendto(query.response, address)
             elif query.message_type == 'files?':
                 zap_debug_print("got a files? message")
+
                 #BUILD LIST OF FILES AND SEND BACK
                 response = ZapTorrentProtocolResponse(response_type='files', name='hurp',
                                                       ip=socket.gethostbyname(socket.gethostname()),

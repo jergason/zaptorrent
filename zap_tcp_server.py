@@ -57,7 +57,8 @@ class ZapTCPResponseThread(threading.Thread):
                 response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
                 r = ZapTorrentProtocolResponse(response_type="inventory", filename=f.filename, blocks=f.number_of_blocks)
-                r.stuff_to_add = f.get_blocks()
+                r.stuff_to_add = f.get_blocks(status='present')
+                zap_debug_print("got back some blocks and they looks like this:", r.stuff_to_add)
                 response = r.as_response()
         elif query.message_type == 'download?':
             #make sure we have the file
