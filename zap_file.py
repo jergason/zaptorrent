@@ -14,7 +14,7 @@ class ZapFileBlock:
     def __init__(self, path, id, size, **kwargs):
         for k in kwargs:
             self.k = kwargs[k]
-        # Status can either be present, downloading or missing
+        # Status can either be present, downloading or not-present
         if "status" not in kwargs:
             self.status = "present"
         self.path = path
@@ -29,29 +29,17 @@ class ZapFileBlock:
 
 class ZapFile:
     def __init__(self, **kwargs):
-        self.properties = {}
         self.blocks = []
         for k in kwargs:
             if k == 'path':
                 self.set_path(kwargs[k])
             else:
-                self.properties[k] = kwargs[k]
-
-    def __getattr__(self, attribute):
-        if self.properties.has_key(attribute):
-            return self.properties[attribute]
-        elif attribute == "number_of_blocks":
-            return len(self.blocks)
-        else:
-            raise AttributeError, name
-
-    def __setattr__(self, name, value):
-        self.properties[name] = value
+                self.k = kwargs[k]
 
     def set_path(self, path):
         if os.path.exists(path):
-            self.properties['path'] = path
-            (p, self.properties['filename']) = os.path.split(self.path)
+            self.path = path
+            (p, self.filename) = os.path.split(self.path)
             self.calculate_digest_and_create_blocks()
             return True
         else:
@@ -62,7 +50,7 @@ class ZapFile:
             f = open(self.path, "rb")
             f_str = f.read()
             f.close()
-            self.properties['digest'] = hashlib.sha224(f_str).hexdigest()
+            self.digest = hashlib.sha224(f_str).hexdigest()
             self.blocks = []
             size = os.path.getsize(self.path)
             num_blocks = size / BLOCK_SIZE_IN_BYTES
@@ -77,6 +65,7 @@ class ZapFile:
                 self.blocks.append(ZapFileBlock(self.path, block_id,
                     block_size, status="present"))
             # return True
+            self.number_of_blocks = len(self.blocks)
         else:
             return False
 
@@ -84,6 +73,9 @@ class ZapFile:
     #TODO: grant thread-safe access to blocks
     def get_block(self, block_id):
         return self.blocks[block_id]
+
+    def get_blocks(self):
+        return self.blocks
 
 
 

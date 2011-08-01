@@ -58,13 +58,24 @@ class ZapTorrentProtocolParser:
             self.message_type = 'inventory'
             self.fields['filename'] = match.group('filename')
             self.fields['blocks'] = match.group('blocks')
+
+            self.block_list = []
             block_list = match.group('rest')
-            block_line_re = re.compile(r"^$")
+            block_line_re = re.compile(r"^(?P<id>\d+) (?P<bytes>\d+)\n$")
             for line_number, line in enumerate(block_list.split('\n')):
                 block_line_match = block_line_re.match(line)
                 if block_line_match is None or line_number + 1 > self.fields['blocks']:
-                    ""
-            ""
+                    if block_line_match == "":
+                        continue
+                    else:
+                        self.message_type = "error"
+                        self.response = "ZT 1.0 error Block lines not correctly formatted.\n"
+                        break
+                else:
+                    self.block_list.append({ 'id':
+                        block_line_match.group('id'), 'bytes':
+                        block_line_match.group('bytes')})
+
         elif self.protocol_matchers['download?'].match(self.data):
             ""
         elif self.protocol_matchers['download'].match(self.data):
@@ -107,7 +118,7 @@ class ZapTorrentProtocolResponse:
                     self.fields['ip'], self.fields['port'], len(self.stuff_to_add))
             print("in as_response before for loop, and constructed following response: %s" % response_string)
             for f in self.stuff_to_add:
-                response_string += "%s %s %d\n" % (f.filename, f.digest, f.blocks)
+                response_string += "%s %s %d\n" % (f.filename, f.digest, f.number_of_blocks)
             print("in as_response, and constructed following response: %s" % response_string)
         elif self.response_type == "files?":
             response_string += "\n"
@@ -124,7 +135,7 @@ class ZapTorrentProtocolResponse:
         elif self.response_type == 'inventory':
             response_string += " %s %d\n" % (self.fields['filename'], self.fields['blocks'])
             for f in self.stuff_to_add:
-                response_string += "%d %d\n" % (f.id, f.bytes)
+                response_string += "%d %d\n" % (f.id, f.size)
         # <b>Message</b>
         # ZT 1.0 download? [filename] [id] [name] [IP] [port]\n
 

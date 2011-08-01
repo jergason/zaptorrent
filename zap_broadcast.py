@@ -2,7 +2,7 @@ import socket
 import threading
 import sys
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
-from zap_config import ZapConfig
+from zap_config import ZapConfig, zap_debug_print
 import random
 
 class ZapBroadcast(threading.Thread):
@@ -38,19 +38,21 @@ class ZapBroadcast(threading.Thread):
             if address[0] == self.ip and address[1] == self.ignore_port:
                 continue
             query = ZapTorrentProtocolParser(data)
-            print("in zap_broadcast and got some data! ", data)
-            print("address is", address)
-            print("my ignoring stuff is", self.ip, self.ignore_port)
+            zap_debug_print("in zap_broadcast and got some data! ", data)
+            zap_debug_print("address is", address)
+            zap_debug_print("my ignoring stuff is", self.ip, self.ignore_port)
             query.parse()
             if query.message_type == 'error':
                 self.sock.sendto(query.response, address)
             elif query.message_type == 'files?':
-                print("got a files? message")
+                zap_debug_print("got a files? message")
                 #BUILD LIST OF FILES AND SEND BACK
                 response = ZapTorrentProtocolResponse(response_type='files', name='hurp',
                                                       ip=socket.gethostbyname(socket.gethostname()),
                                                       port=ZapConfig.tcp_port)
-                for file in self.local_files.get_files():
-                    response.add(file)
-                print("response is ", response.as_response())
+                for filename in self.local_files.get_files():
+                    f = self.local_files.get_files()[filename]
+                    zap_debug_print("Adding a local file, and it is", f)
+                    response.add(f)
+                zap_debug_print("response is ", response.as_response())
                 self.sock.sendto(response.as_response(), address)

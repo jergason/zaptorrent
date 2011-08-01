@@ -2,7 +2,11 @@
 # Yup, it is dirty.
 
 class ZapConfig:
-    debug = False
+    verbose = False
     ip = None
     tcp_port = None
     name = None
+
+def zap_debug_print(*args):
+    if ZapConfig.verbose:
+        print(args)

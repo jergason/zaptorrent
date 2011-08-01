@@ -5,10 +5,12 @@ import socket
 import random
 import threading
 import time
+import copy
 from zap_file import ZapFile, ZapFiles
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
-from zap_config import ZapConfig
+from zap_config import ZapConfig, zap_debug_print
+from zap_tcp_server import ZapTCPServer
 
 class ZapClient:
     def __init__(self, port, verbose):
@@ -16,17 +18,33 @@ class ZapClient:
         self.port = port
         self.local_files = ZapFiles()
         self.remote_files = ZapFiles()
-        ZapConfig.debug = verbose
+        ZapConfig.verbose = verbose
         self.ip = self.get_ip()
+        zap_debug_print("my ip is %s, port is %d" % (self.ip, self.port))
         self.broadcast_port = port
         ZapConfig.ip = self.get_ip()
         self.discoverer = FilesLister(port=self.broadcast_port, remote_files=self.remote_files)
         ZapConfig.tcp_port = random.randint(1300, 40000)
+        self.tcp_port = ZapConfig.tcp_port
 
     def get_ip(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(("google.com", 80))
-        ip = sock.getsockname()[0]
+        ip = ""
+        try:
+            sock.connect(("google.com", 80))
+            ip = sock.getsockname()[0]
+        except socket.gaierror:
+            # if there is no connection to the internet, try getting it by just
+            # broadcasting
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.sendto("HURP DURP", ("<broadcast>", self.port))
+                zap_debug_print("self.port is %d" % self.port)
+                ip = sock.getsockname()[0]
+            except socket.error:
+                print >> sys.stderr, ("Sorry, but I can't connect to the network for some reason.")
+                print >> sys.stderr, ("Check your network connection and try running ZapTorrent again.")
+                sys.exit(2)
         return ip
 
     def quit(self):
@@ -51,19 +69,21 @@ get [file]  #downloads file""")
         #Send something to the discover sock so we can bind it to a port
         self.discoverer.sock.sendto("HURP DURP", ("<broadcast>", self.broadcast_port))
         own_address = self.discoverer.sock.getsockname()
-        print("own address for my comms port is", own_address)
+        zap_debug_print("my udp discovery port is", own_address[1])
         ignore_port = own_address[1]
         b = ZapBroadcast(self.broadcast_port, self.local_files,
                 self.remote_files, self.ip, ignore_port)
         b.start()
+
+        tcp_server = ZapTCPServer(port=self.tcp_port, host=self.ip, local_files=self.local_files)
+        tcp_server.start()
 
         while True:
             line = raw_input(self.prompt + " ")
             if re.match('^quit$', line):
                 self.quit()
             elif re.match('^name (\w+)$', line):
-                "name"
-                #TODO: set name of this host. Has to be somewhere shared I guess.
+                ZapConfig.name = re.match(r"^name (\w+)$", line).group(1)
             elif re.match('^list$', line):
                 self.remote_files.clear()
                 query = ZapTorrentProtocolResponse(response_type="files?").as_response()
@@ -81,6 +101,7 @@ get [file]  #downloads file""")
                 path = re.match('^load ([\w\._\-/]+)$', line).group(1)
                 f = ZapFile()
                 if f.set_path(path):
+                    zap_debug_print("Loaded a local file and it is ", f)
                     self.local_files.add(f)
                     print("File at %s loaded for sharing." % path)
                 else:
@@ -88,10 +109,41 @@ get [file]  #downloads file""")
             elif re.match('^get (\w+)$', line):
                 filename =  re.match('^get (\w+)$', line).group(1)
                 remote_files = self.remote_files.get(filename)
+                downloader = ZapDownloader(remote_files, self.local_files)
+                downloader.start()
 
             else:
                 self.print_usage()
                 continue
+
+
+class ZapDownloader(threading.Thread):
+    def __init__(remote_files, local_files):
+        threading.Thread.__init__(self)
+        threading.Thread.daemon = True
+        self.remote_files = remote_files
+        self.local_files = local_files
+
+
+
+    def remote_file_downloader(self, remote_file, file_attributes):
+        ""
+
+
+    def run(self):
+        file_info = self.remote_files[0]
+        remote_file = ZapFile()
+        remote_file = copy.deepcopy(file_info)
+        child_threads = []
+        for f in self.remote_files:
+            remote_location = {}
+            remote_location['ip'] = f.ip
+            remote_location['port'] = f.port
+            remote_location['name'] = f.name
+            child_thread = self.remote_file_downloader(remote_file, f)
+            child_thread.start()
+            child_threads.append(child_thread)
+
 
 class FilesLister(threading.Thread):
     """This thread shares a socket, and will wait for responses listing files."""
@@ -145,7 +197,7 @@ if __name__ == "__main__":
                       help="port number that the peer will broadcast on")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
                       help="Display debugging output")
-    parser.set_defaults(verbose=True)
+    parser.set_defaults(verbose=False)
     options, args = parser.parse_args()
     z = ZapClient(options.port, options.verbose)
     z.run()
