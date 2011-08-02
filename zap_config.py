@@ -13,5 +13,5 @@ def zap_debug_print(*args):
 
 def zap_log(log_string):
     f = open('zap_log.out', 'a')
-    f.write(log_string)
+    f.write(log_string + '\n')
     f.close()

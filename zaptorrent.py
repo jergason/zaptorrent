@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import optparse
 import socket
@@ -113,6 +114,7 @@ get [file]  #downloads file""")
                 if remote_files is not None:
                     downloader = ZapDownloader(remote_files, self.local_files)
                     downloader.start()
+                    print("Starting to download %s." % filename)
                 else:
                     print("No files by that name. Sorry. Try 'list' to update your list of files.")
 
@@ -173,6 +175,7 @@ class ZapDownloader(threading.Thread):
             log_string = "file %s %s %s" % (remote_file.filename, os.path.getsize(remote_file.path),
                     stop_time - start_time)
             zap_log(log_string)
+            print("Finished downloading %s. Find it at %s." % (remote_file.filename, remote_file.path))
             return True
 
 class ZapTCPDownloadThread(threading.Thread):
