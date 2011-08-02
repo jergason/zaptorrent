@@ -72,7 +72,7 @@ class ZapTCPResponseThread(threading.Thread):
                     r = ZapTorrentProtocolResponse(response_type="download", filename=f.filename, id=query.fields['id'],
                             bytes=f.get_block(int(query.fields['id'])).get_bytes())
                     response = r.as_response()
-                    log_string = "upload %s %s %s %s %s %s" % (f.filename, query.fields['name'],
+                    log_string = "upload %s %s %s %s %s %s" % (f.filename, ZapConfig.name,
                             query.fields['ip'], query.fields['port'], query.fields['id'],
                             len(f.get_block(int(query.fields['id'])).get_bytes()))
                     zap_log(log_string)
