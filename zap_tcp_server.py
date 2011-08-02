@@ -1,7 +1,7 @@
 import threading
 import socket
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
-from zap_config import zap_debug_print, zap_log
+from zap_config import zap_debug_print, zap_log, ZapConfig
 
 
 class ZapTCPServer(threading.Thread):
