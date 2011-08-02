@@ -1,7 +1,7 @@
 import threading
 import socket
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
-from zap_config import zap_debug_print
+from zap_config import zap_debug_print, zap_log
 
 
 class ZapTCPServer(threading.Thread):
@@ -67,12 +67,15 @@ class ZapTCPResponseThread(threading.Thread):
             if f is None:
                 response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
-                #TODO: log the answer
                 f = f[0]
                 if f.block_is_present(int(query.fields['id'])):
                     r = ZapTorrentProtocolResponse(response_type="download", filename=f.filename, id=query.fields['id'],
                             bytes=f.get_block(int(query.fields['id'])).get_bytes())
                     response = r.as_response()
+                    log_string = "upload %s %s %s %s %s %s" % (f.filename, query.fields['name'],
+                            query.fields['ip'], query.fields['port'], query.fields['id'],
+                            len(f.get_block(int(query.fields['id'])).get_bytes()))
+                    zap_log(log_string)
                 else:
                     response = "ZT 1.0 error No block for %s at %s\n" % (f.filename, query.fields['id'])
 

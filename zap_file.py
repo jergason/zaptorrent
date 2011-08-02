@@ -28,6 +28,9 @@ class ZapFileBlock:
         os.close(fd)
         return block_bytes
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
 class ZapFile:
     def __init__(self, **kwargs):
         self.blocks = []
@@ -37,6 +40,9 @@ class ZapFile:
             else:
                 self.__dict__[k] = kwargs[k]
         self.sem = threading.Semaphore()
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
 
     def set_path(self, path):
         if os.path.isfile(path):
@@ -152,6 +158,18 @@ class ZapFiles:
         self.sem.acquire()
         self.files = {}
         self.sem.release()
+
+    def remove(self, f):
+        if f.filename not in self.files:
+            return None
+        else:
+            if f in self.files[f.filename]:
+                self.files[f.filename].remove(f)
+                return True
+            else:
+                return False
+
+
 
     def count(self):
         return len(self.files)

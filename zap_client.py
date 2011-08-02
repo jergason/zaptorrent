@@ -9,7 +9,7 @@ import copy
 from zap_file import ZapFile, ZapFiles
 from zap_protocol import ZapTorrentProtocolParser, ZapTorrentProtocolResponse
 from zap_broadcast import ZapBroadcast
-from zap_config import ZapConfig, zap_debug_print
+from zap_config import ZapConfig, zap_debug_print, zap_log
 from zap_tcp_server import ZapTCPServer
 
 class ZapClient:
@@ -136,6 +136,7 @@ class ZapDownloader(threading.Thread):
         threads return, check if the file is completely
         downloaded. If so, determine its digest and make
         sure it matches, and save it to disk."""
+        start_time = time.time()
         file_info = self.remote_files[0]
         remote_file = ZapFile()
         remote_file.filename = file_info.filename
@@ -156,7 +157,7 @@ class ZapDownloader(threading.Thread):
         # How do we wait for them to finish?
         # TODO: what if I can't download the whole file?
         while not remote_file.is_downloaded():
-            time.sleep(10)
+            time.sleep(4)
 
         # Now all child threads are gone, I hope.
         remote_file.save_to_disk()
@@ -164,8 +165,14 @@ class ZapDownloader(threading.Thread):
         if remote_file.digest != file_info.digest:
             # Our file does not match. Quit this thread and return an error
             zap_debug_print("Digest does not match! I should delete downloaded file!")
+            self.local_files.remove(remote_file)
+            os.remove(remote_file.path)
             return False
         else:
+            stop_time = time.time()
+            log_string = "file %s %s %s" % (remote_file.filename, os.path.getsize(remote_file.path),
+                    stop_time - start_time)
+            zap_log(log_string)
             return True
 
 class ZapTCPDownloadThread(threading.Thread):
@@ -208,6 +215,10 @@ class ZapTCPDownloadThread(threading.Thread):
             if data is not None:
                 self.remote_file.set_block_data(block_to_download, data)
                 self.remote_file.mark_block_as('present', block_to_download)
+                log_string = "download %s %s %s %s %s %s" % (self.peer_info.filename,
+                        self.peer_info.name, self.peer_info.ip, self.peer_info.port,
+                        block_to_download, len(data))
+                zap_log(log_string)
             else:
                 # Mark the block to be downloaded again.
                 print(("error downloading block %s from" % block_to_download), self.peer_info)
