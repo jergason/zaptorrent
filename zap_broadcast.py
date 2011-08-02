@@ -45,14 +45,13 @@ class ZapBroadcast(threading.Thread):
             if query.message_type == 'error':
                 self.sock.sendto(query.response, address)
             elif query.message_type == 'files?':
-                zap_debug_print("got a files? message")
 
                 #BUILD LIST OF FILES AND SEND BACK
-                response = ZapTorrentProtocolResponse(response_type='files', name='hurp',
-                                                      ip=socket.gethostbyname(socket.gethostname()),
+                response = ZapTorrentProtocolResponse(response_type='files', name=ZapConfig.name,
+                                                      ip=self.ip,
                                                       port=ZapConfig.tcp_port)
                 for filename in self.local_files.get_files():
-                    f = self.local_files.get_files()[filename]
+                    f = self.local_files.get_files()[filename][0]
                     zap_debug_print("Adding a local file, and it is", f)
                     response.add(f)
                 zap_debug_print("response is ", response.as_response())

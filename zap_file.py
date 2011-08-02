@@ -25,6 +25,7 @@ class ZapFileBlock:
         fd = os.open(self.path, ZapFileBlock.file_flags)
         os.lseek(fd, self.id * BLOCK_SIZE_IN_BYTES, 0)
         block_bytes = os.read(fd, self.size)
+        os.close(fd)
         return block_bytes
 
 class ZapFile:
@@ -34,7 +35,7 @@ class ZapFile:
             if k == 'path':
                 self.set_path(kwargs[k])
             else:
-                self.k = kwargs[k]
+                self.__dict__[k] = kwargs[k]
         self.sem = threading.Semaphore()
 
     def set_path(self, path):
@@ -77,7 +78,6 @@ class ZapFile:
             f.close()
             self.digest = hashlib.sha224(f_str).hexdigest()
 
-    #TODO: grant thread-safe access to blocks
     def get_block(self, block_id):
         return self.blocks[block_id]
 
@@ -90,22 +90,26 @@ class ZapFile:
         else:
             return self.blocks
 
-    def mark_as_remote(self, number_of_blocks):
+    def mark_as_remote(self):
         # each block stores its bytes in internal storage?
         self.path = os.path.join(os.path.abspath(sys.path[0]), 'downloads', self.filename)
-        for i in range(number_of_blocks):
-            self.blocks.append(ZapFileBlock(status='not-present',
-                path=path, id=i, size=BLOCK_SIZE_IN_BYTES))
+        for i in range(int(self.number_of_blocks)):
+            self.blocks.append(ZapFileBlock(self.path, i, BLOCK_SIZE_IN_BYTES, status='not-present'))
 
 
     def does_block_needs_downloading(self, block_id):
-        return self.blocks[block_id].staus == 'not-present'
+        return self.blocks[block_id].status == 'not-present'
 
     def mark_block_as(self, status, block_id):
         self.blocks[block_id].status = status
 
     def set_block_data(self, block_id, data):
         self.blocks[block_id].data = data
+
+    def block_is_present(self, block_id):
+        # zap_debug_print("Calling block_is_present, and len(self.blocks) = ", len(self.blocks),
+        #     "block_id is ", block_id, "status is ", self.blocks[block_id].status)
+        return len(self.blocks) > block_id and block_id >= 0 and self.blocks[block_id].status == 'present'
 
     def is_downloaded(self):
         """If any blocks are not downloaded, then the whole
@@ -120,6 +124,7 @@ class ZapFile:
         for block in self.blocks:
             fp.write(block.data)
         fp.close()
+        self.calculate_digest()
 
 
 class ZapFiles:
@@ -130,7 +135,10 @@ class ZapFiles:
     def add(self, f):
         """Add a file to the files we are sharing."""
         self.sem.acquire()
-        self.files[f.filename] = f
+        if f.filename not in self.files:
+            self.files[f.filename] = [f]
+        else:
+            self.files[f.filename].append(f)
         self.sem.release()
 
     def get(self, filename):
@@ -142,7 +150,7 @@ class ZapFiles:
 
     def clear(self):
         self.sem.acquire()
-        self.files = []
+        self.files = {}
         self.sem.release()
 
     def count(self):

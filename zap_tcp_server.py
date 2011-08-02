@@ -56,26 +56,30 @@ class ZapTCPResponseThread(threading.Thread):
             if f is None:
                 response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
+                f = f[0]
                 r = ZapTorrentProtocolResponse(response_type="inventory", filename=f.filename, blocks=f.number_of_blocks)
-                #TODO: make this work
                 r.stuff_to_add = f.get_blocks(status='present')
                 zap_debug_print("got back some blocks and they looks like this:", r.stuff_to_add)
                 response = r.as_response()
         elif query.message_type == 'download?':
             #make sure we have the file
-            zap_debug_print("Got a download query")
             f = self.local_files.get(query.fields['filename'])
             if f is None:
                 response = "ZT 1.0 error No file named %s" % query.fields['filename']
             else:
                 #TODO: log the answer
-                #TODO: make sure the block with that id exists, and it is not being downloaded
-                r = ZapTorrentProtocolResponse(response_type="download", filename=f.filename, id=query.fields['id'],
-                        bytes=f.get_block(int(query.fields['id'])).get_bytes())
-                response = r.as_response()
+                f = f[0]
+                if f.block_is_present(int(query.fields['id'])):
+                    r = ZapTorrentProtocolResponse(response_type="download", filename=f.filename, id=query.fields['id'],
+                            bytes=f.get_block(int(query.fields['id'])).get_bytes())
+                    response = r.as_response()
+                else:
+                    response = "ZT 1.0 error No block for %s at %s\n" % (f.filename, query.fields['id'])
+
         else:
             response = "ZT 1.0 error unknown TCP query type.\n"
         sent_length = 0
+        zap_debug_print("sending %s as response" % response)
         while sent_length < len(response):
             message_remaining = response[sent_length:]
             length = self.sock.send(message_remaining)

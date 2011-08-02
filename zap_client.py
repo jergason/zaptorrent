@@ -96,7 +96,7 @@ get [file]  #downloads file""")
                 #now wait for the filesLister to get more info
                 print("Waiting for response from peers. . .")
                 time.sleep(3)
-                for k in self.remote_files.get_all_files():
+                for k in self.remote_files.get_files():
                     print("File: %s" % k)
             elif re.match('^load ([\w\._\-/]+)$', line):
                 path = re.match('^load ([\w\._\-/]+)$', line).group(1)
@@ -107,11 +107,14 @@ get [file]  #downloads file""")
                     print("File at %s loaded for sharing." % path)
                 else:
                     print("File at %s doesn't exist, or it is a directory. Try a different path." % path)
-            elif re.match('^get (\w+)$', line):
-                filename =  re.match('^get (\w+)$', line).group(1)
+            elif re.match('^get ([\w\.\-]+)$', line):
+                filename =  re.match('^get ([\w\.\-]+)$', line).group(1)
                 remote_files = self.remote_files.get(filename)
-                downloader = ZapDownloader(remote_files, self.local_files)
-                downloader.start()
+                if remote_files is not None:
+                    downloader = ZapDownloader(remote_files, self.local_files)
+                    downloader.start()
+                else:
+                    print("No files by that name. Sorry. Try 'list' to update your list of files.")
 
             else:
                 self.print_usage()
@@ -119,7 +122,7 @@ get [file]  #downloads file""")
 
 
 class ZapDownloader(threading.Thread):
-    def __init__(remote_files, local_files):
+    def __init__(self, remote_files, local_files):
         threading.Thread.__init__(self)
         threading.Thread.daemon = True
         self.remote_files = remote_files
@@ -135,8 +138,10 @@ class ZapDownloader(threading.Thread):
         sure it matches, and save it to disk."""
         file_info = self.remote_files[0]
         remote_file = ZapFile()
-        self.local_files.add(remote_file)
+        remote_file.filename = file_info.filename
+        remote_file.number_of_blocks = file_info.number_of_blocks
         remote_file.mark_as_remote()
+        self.local_files.add(remote_file)
         child_threads = []
 
         for f in self.remote_files:
@@ -149,14 +154,16 @@ class ZapDownloader(threading.Thread):
             child_threads.append(child_thread)
 
         # How do we wait for them to finish?
+        # TODO: what if I can't download the whole file?
         while not remote_file.is_downloaded():
-            sleep(10)
+            time.sleep(10)
 
         # Now all child threads are gone, I hope.
         remote_file.save_to_disk()
+        zap_debug_print("remote file digest is ", remote_file.digest, "file_info.digest is ", file_info.digest)
         if remote_file.digest != file_info.digest:
             # Our file does not match. Quit this thread and return an error
-            zap_debug_print("Digest does not match!")
+            zap_debug_print("Digest does not match! I should delete downloaded file!")
             return False
         else:
             return True
@@ -169,7 +176,6 @@ class ZapTCPDownloadThread(threading.Thread):
         self.peer_info = peer_info
 
     def run(self):
-        zap_debug_print("Inside a thread and downloading stuff!")
         # In a loop - aquire the lock
         # Check if the peer info has any stuff that I don't have
         # If so, mark it as downloading and release the lock
@@ -180,30 +186,32 @@ class ZapTCPDownloadThread(threading.Thread):
         while True:
             # We get the blocks each time in case the peer
             # has since received new blocks
-            blocks_available = self.get_available_blocks(self.peer_info['ip'],
-                    self.peer_info['port'], self.peer_info['filename'])
-            remote_file.sem.acquire()
+            blocks_available = self.get_available_blocks(self.peer_info.ip,
+                    self.peer_info.port, self.peer_info.filename)
+            zap_debug_print("Blocks available are ", blocks_available)
+            self.remote_file.sem.acquire()
             block_to_download = None
             for block_id in blocks_available:
-                if remote_file.does_block_needs_downloading(block_id):
-                    block_to_download = block_id
-                    remote_file.mark_block_as('downloading', block_to_download)
+                if self.remote_file.does_block_needs_downloading(int(block_id)):
+                    block_to_download = int(block_id)
+                    self.remote_file.mark_block_as('downloading', int(block_to_download))
                     break
-            remote_file.sem.release()
+            self.remote_file.sem.release()
             if block_to_download is None:
                 zap_debug_print("No more blocks to download from" +
                         " this peer: ", self.peer_info)
                 break
-            data = self.download_block(self.peer_info['filename'],
-                    block_to_download, self.peer_info['ip'],
-                    self.peer_info['port'])
+            data = self.download_block(self.peer_info.filename,
+                    block_to_download, self.peer_info.ip,
+                    self.peer_info.port)
+            zap_debug_print("received %s back from the download query" % data)
             if data is not None:
-                remote_file.set_block_data(block_to_download, data)
-                remote_file.mark_block_as('present', block_to_download)
+                self.remote_file.set_block_data(block_to_download, data)
+                self.remote_file.mark_block_as('present', block_to_download)
             else:
                 # Mark the block to be downloaded again.
-                print("error downloading block %d from" % block_to_download. peer_info)
-                remote_file.mark_block_as('not-present', block_to_download)
+                print(("error downloading block %s from" % block_to_download), self.peer_info)
+                self.remote_file.mark_block_as('not-present', int(block_to_download))
 
     def get_available_blocks(self, ip, port, filename):
         """Return a list of blocks that the peer at
@@ -212,14 +220,15 @@ class ZapTCPDownloadThread(threading.Thread):
         query = ZapTorrentProtocolResponse(response_type='inventory?',
                 filename=filename)
         msg = query.as_response()
-        sock.connect((ip, port))
+        sock.connect((ip, int(port)))
         self.send_to_socket(sock, msg)
         results = sock.recv(54000)
         if len(results) == 0:
             raise RuntimeError("socket closed remotely")
         parser = ZapTorrentProtocolParser(results)
         parser.parse()
-        return [block.id for block in parser.get_blocks()]
+        sock.close()
+        return [block['id'] for block in parser.get_blocks()]
 
 
     def download_block(self, filename, id, ip, port):
@@ -228,9 +237,10 @@ class ZapTCPDownloadThread(threading.Thread):
             ip=ZapConfig.ip, port=ZapConfig.tcp_port)
         msg = query.as_response()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((ip, port))
+        sock.connect((ip, int(port)))
         self.send_to_socket(sock, msg)
-        resp = self.recv(54000)
+        resp = sock.recv(54000)
+        zap_debug_print("download_blocks got %s back" % resp)
         #TODO: what if we don't receive the
         # entire first chunk, or we get an error?
         if len(resp) == 0:
@@ -239,11 +249,13 @@ class ZapTCPDownloadThread(threading.Thread):
         parser.parse()
         if parser.message_type == 'download':
             #make sure we have the whole block
-            while len(parser.fields['data']) < parser.fields['bytes']:
-                parser.fields['bytes'] += sock.recv(54000)
-            return parser.fields['bytes']
+            while len(parser.fields['data']) < int(parser.fields['bytes']):
+                parser.fields['data'] += sock.recv(54000)
+            sock.close()
+            return parser.fields['data']
         else:
             zap_debug_print("Error downloading a block: got ", resp)
+            sock.close()
             return None
 
 
@@ -252,7 +264,7 @@ class ZapTCPDownloadThread(threading.Thread):
         sent_length = 0
         while sent_length < message_length:
             #TODO: check if it is zero
-            length = sock.send(msg[:sent_length])
+            length = sock.send(msg[sent_length:])
             if length == 0:
                 raise RuntimeError("socket closed remotely")
             sent_length += length
@@ -284,26 +296,26 @@ class FilesLister(threading.Thread):
             if address[0] == ZapConfig.ip and address[1] == self.ignore_port:
                 continue
             query = ZapTorrentProtocolParser(data)
-            print("Got some data! ", data)
-            print("my address is", (ZapConfig.ip, self.port))
-            print("other address is", address)
-            print("about to parse the query in FilesLister")
+            zap_debug_print("Got some data! ", data)
+            zap_debug_print("my address is", (ZapConfig.ip, self.port))
+            zap_debug_print("other address is", address)
+            zap_debug_print("about to parse the query in FilesLister")
             query.parse()
             if query.message_type == "files":
                 # Parse the files out of the query, and store them in the remote files
-                print("got a files reponse: ", data)
+                zap_debug_print("got a files reponse: ", data)
                 ip = query.get_field('ip')
                 port = query.get_field('port')
                 name = query.get_field('name')
                 for f in query.get_files():
-                    #just make them use remote files?
                     zf = ZapFile(status="not-present")
                     zf.ip = ip
                     zf.port = port
-                    zf.hostname = name
+                    zf.name = name
                     zf.number_of_blocks = f['blocks']
                     zf.digest = f['digest']
                     zf.filename = f['filename']
+                    zap_debug_print("Someone told me about a file named", zf.filename)
                     self.remote_files.add(zf)
 
 if __name__ == "__main__":
@@ -317,5 +329,4 @@ if __name__ == "__main__":
     parser.set_defaults(verbose=False)
     options, args = parser.parse_args()
     z = ZapClient(options.port, options.verbose)
-    print("RUNNING ZAP_CLIENT")
     z.run()

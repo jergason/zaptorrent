@@ -5,7 +5,7 @@ class ZapConfig:
     verbose = False
     ip = None
     tcp_port = None
-    name = None
+    name = "BEANS"
 
 def zap_debug_print(*args):
     if ZapConfig.verbose:

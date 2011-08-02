@@ -40,3 +40,4 @@ stuff you already have, close the connection.
    file has, and the status of each block - is it downloaded or not,
    what the size is, and the contents. Should also provide thread-safe
    access to the blocks and the status of the blocks.
+4. TODO: fix problem with file endings not working
